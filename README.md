@@ -1,3 +1,5 @@
+[![Test DevEnv](https://github.com/strabo231/devenv/actions/workflows/test.yml/badge.svg)](https://github.com/strabo231/devenv/actions/workflows/test.yml)
+
 # DevEnv - Universal Development Environment Manager
 
 One tool to manage ALL your development environment versions. Stop juggling pyenv, nvm, rbenv, and a dozen other tools!

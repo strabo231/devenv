@@ -4,7 +4,7 @@ set -e
 
 INSTALL_DIR="/usr/local/bin"
 SCRIPT_NAME="devenv"
-REPO_URL="https://raw.githubusercontent.com/YOUR_USERNAME/devenv/main/devenv"
+REPO_URL="https://raw.githubusercontent.com/strabo231/devenv/main/devenv"
 
 echo "🔧 DevEnv Installer"
 echo "==================="

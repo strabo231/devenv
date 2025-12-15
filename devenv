@@ -1,0 +1,508 @@
+#!/bin/bash
+
+# DevEnv - Universal Development Environment Manager
+# Version: 1.0.0
+
+VERSION="1.0.0"
+SCRIPT_NAME="devenv"
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+MAGENTA='\033[0;35m'
+NC='\033[0m'
+
+print_success() { echo -e "${GREEN}✓${NC} $1"; }
+print_error() { echo -e "${RED}✗${NC} $1"; }
+print_info() { echo -e "${BLUE}ℹ${NC} $1"; }
+print_warning() { echo -e "${YELLOW}⚠${NC} $1"; }
+print_header() { echo -e "${CYAN}${1}${NC}"; }
+
+# Config directory
+DEVENV_DIR="$HOME/.devenv"
+ACTIVE_FILE="$DEVENV_DIR/active"
+mkdir -p "$DEVENV_DIR"
+
+show_usage() {
+    cat << EOF
+${BLUE}DevEnv${NC} - Universal Development Environment Manager v${VERSION}
+
+${YELLOW}Usage:${NC}
+    $SCRIPT_NAME <command> [options]
+
+${YELLOW}Commands:${NC}
+    use <lang> <version>     Switch to a specific version
+    status                   Show active versions
+    list <lang>              List available versions
+    detect                   Auto-detect project requirements
+    current <lang>           Show current version of language
+    shell                    Start a subshell with environment
+
+${YELLOW}Supported Languages:${NC}
+    python      Python (via pyenv or system)
+    node        Node.js (via nvm or system)
+    java        Java (via update-alternatives)
+    ruby        Ruby (via rbenv or system)
+    go          Go (via system)
+
+${YELLOW}Options:${NC}
+    -h, --help              Show this help
+    -v, --version           Show version
+
+${YELLOW}Examples:${NC}
+    $SCRIPT_NAME use python 3.11
+        → Switch to Python 3.11
+
+    $SCRIPT_NAME use node 18
+        → Switch to Node 18
+
+    $SCRIPT_NAME status
+        → Show all active versions
+
+    $SCRIPT_NAME detect
+        → Auto-detect versions from project files
+
+    $SCRIPT_NAME current python
+        → Show current Python version
+
+${YELLOW}Project Detection:${NC}
+    DevEnv can detect versions from:
+    • .python-version
+    • .node-version
+    • .nvmrc
+    • package.json (engines field)
+    • pyproject.toml
+    • .tool-versions (asdf)
+
+${YELLOW}Quick Start:${NC}
+    1. Check current versions:  $SCRIPT_NAME status
+    2. Switch Python:           $SCRIPT_NAME use python 3.11
+    3. Switch Node:             $SCRIPT_NAME use node 18
+    4. Verify:                  python --version && node --version
+
+EOF
+}
+
+show_version() {
+    echo "$SCRIPT_NAME version $VERSION"
+}
+
+# Detect if pyenv is installed
+has_pyenv() {
+    command -v pyenv &> /dev/null
+}
+
+# Detect if nvm is installed
+has_nvm() {
+    [ -s "$HOME/.nvm/nvm.sh" ]
+}
+
+# Detect if rbenv is installed
+has_rbenv() {
+    command -v rbenv &> /dev/null
+}
+
+# Get current Python version
+get_python_version() {
+    python3 --version 2>/dev/null | awk '{print $2}' || echo "not found"
+}
+
+# Get current Node version
+get_node_version() {
+    node --version 2>/dev/null | sed 's/v//' || echo "not found"
+}
+
+# Get current Java version
+get_java_version() {
+    java -version 2>&1 | head -n 1 | awk -F'"' '{print $2}' || echo "not found"
+}
+
+# Get current Ruby version
+get_ruby_version() {
+    ruby --version 2>/dev/null | awk '{print $2}' || echo "not found"
+}
+
+# Get current Go version
+get_go_version() {
+    go version 2>/dev/null | awk '{print $3}' | sed 's/go//' || echo "not found"
+}
+
+# Show status
+show_status() {
+    print_header "═══════════════════════════════════════════════════════════════"
+    print_header "              ACTIVE DEVELOPMENT ENVIRONMENT"
+    print_header "═══════════════════════════════════════════════════════════════"
+    echo ""
+    
+    echo -e "${CYAN}Python:${NC}  $(get_python_version)"
+    echo -e "${CYAN}Node:${NC}    $(get_node_version)"
+    echo -e "${CYAN}Java:${NC}    $(get_java_version)"
+    echo -e "${CYAN}Ruby:${NC}    $(get_ruby_version)"
+    echo -e "${CYAN}Go:${NC}      $(get_go_version)"
+    
+    echo ""
+    print_header "═══════════════════════════════════════════════════════════════"
+    
+    # Show tool status
+    echo ""
+    print_info "Version Managers:"
+    has_pyenv && echo "  ✓ pyenv installed" || echo "  ✗ pyenv not installed"
+    has_nvm && echo "  ✓ nvm installed" || echo "  ✗ nvm not installed"
+    has_rbenv && echo "  ✓ rbenv installed" || echo "  ✗ rbenv not installed"
+    echo ""
+}
+
+# Show current version of a language
+show_current() {
+    local lang="$1"
+    
+    case "$lang" in
+        python)
+            echo "Python: $(get_python_version)"
+            ;;
+        node)
+            echo "Node: $(get_node_version)"
+            ;;
+        java)
+            echo "Java: $(get_java_version)"
+            ;;
+        ruby)
+            echo "Ruby: $(get_ruby_version)"
+            ;;
+        go)
+            echo "Go: $(get_go_version)"
+            ;;
+        *)
+            print_error "Unknown language: $lang"
+            return 1
+            ;;
+    esac
+}
+
+# Use a specific version
+use_version() {
+    local lang="$1"
+    local version="$2"
+    
+    if [ -z "$lang" ] || [ -z "$version" ]; then
+        print_error "Usage: $SCRIPT_NAME use <language> <version>"
+        return 1
+    fi
+    
+    case "$lang" in
+        python)
+            use_python "$version"
+            ;;
+        node)
+            use_node "$version"
+            ;;
+        java)
+            use_java "$version"
+            ;;
+        ruby)
+            use_ruby "$version"
+            ;;
+        go)
+            use_go "$version"
+            ;;
+        *)
+            print_error "Unsupported language: $lang"
+            print_info "Supported: python, node, java, ruby, go"
+            return 1
+            ;;
+    esac
+}
+
+# Use Python version
+use_python() {
+    local version="$1"
+    
+    if has_pyenv; then
+        print_info "Using pyenv to switch Python to $version..."
+        
+        # Check if version is installed
+        if ! pyenv versions --bare | grep -q "^${version}"; then
+            print_warning "Python $version not installed in pyenv"
+            print_info "Install with: pyenv install $version"
+            return 1
+        fi
+        
+        pyenv global "$version"
+        print_success "Python switched to $version"
+        print_info "Current: $(get_python_version)"
+    else
+        print_warning "pyenv not installed"
+        print_info "Install pyenv: curl https://pyenv.run | bash"
+        print_info "Or use system Python: $(get_python_version)"
+    fi
+}
+
+# Use Node version
+use_node() {
+    local version="$1"
+    
+    if has_nvm; then
+        print_info "Using nvm to switch Node to $version..."
+        
+        # Source nvm
+        export NVM_DIR="$HOME/.nvm"
+        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+        
+        # Check if version is installed
+        if ! nvm list | grep -q "v${version}"; then
+            print_warning "Node $version not installed in nvm"
+            print_info "Install with: nvm install $version"
+            return 1
+        fi
+        
+        nvm use "$version"
+        print_success "Node switched to $version"
+        print_info "Current: $(get_node_version)"
+    else
+        print_warning "nvm not installed"
+        print_info "Install nvm: curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash"
+        print_info "Or use system Node: $(get_node_version)"
+    fi
+}
+
+# Use Java version
+use_java() {
+    local version="$1"
+    
+    print_info "Switching Java to version $version..."
+    
+    if command -v update-alternatives &> /dev/null; then
+        # List available Java versions
+        local java_path=$(update-alternatives --list java 2>/dev/null | grep "$version" | head -1)
+        
+        if [ -z "$java_path" ]; then
+            print_warning "Java $version not found"
+            print_info "Install with: sudo apt install openjdk-${version}-jdk"
+            return 1
+        fi
+        
+        sudo update-alternatives --set java "$java_path"
+        print_success "Java switched to $version"
+        print_info "Current: $(get_java_version)"
+    else
+        print_warning "update-alternatives not available"
+        print_info "Manually set JAVA_HOME"
+    fi
+}
+
+# Use Ruby version
+use_ruby() {
+    local version="$1"
+    
+    if has_rbenv; then
+        print_info "Using rbenv to switch Ruby to $version..."
+        
+        # Check if version is installed
+        if ! rbenv versions --bare | grep -q "^${version}"; then
+            print_warning "Ruby $version not installed in rbenv"
+            print_info "Install with: rbenv install $version"
+            return 1
+        fi
+        
+        rbenv global "$version"
+        print_success "Ruby switched to $version"
+        print_info "Current: $(get_ruby_version)"
+    else
+        print_warning "rbenv not installed"
+        print_info "Install rbenv: curl -fsSL https://github.com/rbenv/rbenv-installer/raw/main/bin/rbenv-installer | bash"
+        print_info "Or use system Ruby: $(get_ruby_version)"
+    fi
+}
+
+# Use Go version
+use_go() {
+    local version="$1"
+    
+    print_warning "Go version management not yet implemented"
+    print_info "Current Go version: $(get_go_version)"
+    print_info "Install different Go versions manually from https://go.dev/dl/"
+}
+
+# List available versions
+list_versions() {
+    local lang="$1"
+    
+    if [ -z "$lang" ]; then
+        print_error "Usage: $SCRIPT_NAME list <language>"
+        return 1
+    fi
+    
+    case "$lang" in
+        python)
+            if has_pyenv; then
+                print_header "Python versions (via pyenv):"
+                pyenv versions
+            else
+                print_warning "pyenv not installed"
+                print_info "System Python: $(get_python_version)"
+            fi
+            ;;
+        node)
+            if has_nvm; then
+                print_header "Node versions (via nvm):"
+                export NVM_DIR="$HOME/.nvm"
+                [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+                nvm list
+            else
+                print_warning "nvm not installed"
+                print_info "System Node: $(get_node_version)"
+            fi
+            ;;
+        ruby)
+            if has_rbenv; then
+                print_header "Ruby versions (via rbenv):"
+                rbenv versions
+            else
+                print_warning "rbenv not installed"
+                print_info "System Ruby: $(get_ruby_version)"
+            fi
+            ;;
+        java)
+            print_header "Java versions:"
+            if command -v update-alternatives &> /dev/null; then
+                update-alternatives --list java 2>/dev/null | sed 's|/bin/java||' | sed 's|.*/||'
+            else
+                print_info "System Java: $(get_java_version)"
+            fi
+            ;;
+        *)
+            print_error "Unknown language: $lang"
+            ;;
+    esac
+}
+
+# Detect project requirements
+detect_project() {
+    print_header "═══════════════════════════════════════════════════════════════"
+    print_header "              DETECTING PROJECT REQUIREMENTS"
+    print_header "═══════════════════════════════════════════════════════════════"
+    echo ""
+    
+    local found=false
+    
+    # Python version files
+    if [ -f ".python-version" ]; then
+        local py_ver=$(cat .python-version)
+        print_success "Found .python-version: $py_ver"
+        print_info "Run: $SCRIPT_NAME use python $py_ver"
+        found=true
+    fi
+    
+    if [ -f "pyproject.toml" ]; then
+        print_success "Found pyproject.toml (Python project)"
+        found=true
+    fi
+    
+    if [ -f "requirements.txt" ]; then
+        print_success "Found requirements.txt (Python project)"
+        found=true
+    fi
+    
+    # Node version files
+    if [ -f ".nvmrc" ]; then
+        local node_ver=$(cat .nvmrc)
+        print_success "Found .nvmrc: $node_ver"
+        print_info "Run: $SCRIPT_NAME use node $node_ver"
+        found=true
+    fi
+    
+    if [ -f ".node-version" ]; then
+        local node_ver=$(cat .node-version)
+        print_success "Found .node-version: $node_ver"
+        print_info "Run: $SCRIPT_NAME use node $node_ver"
+        found=true
+    fi
+    
+    if [ -f "package.json" ]; then
+        print_success "Found package.json (Node project)"
+        if command -v jq &> /dev/null && jq -e '.engines.node' package.json &>/dev/null; then
+            local node_ver=$(jq -r '.engines.node' package.json)
+            print_info "Required Node: $node_ver"
+        fi
+        found=true
+    fi
+    
+    # Ruby
+    if [ -f ".ruby-version" ]; then
+        local ruby_ver=$(cat .ruby-version)
+        print_success "Found .ruby-version: $ruby_ver"
+        print_info "Run: $SCRIPT_NAME use ruby $ruby_ver"
+        found=true
+    fi
+    
+    if [ -f "Gemfile" ]; then
+        print_success "Found Gemfile (Ruby project)"
+        found=true
+    fi
+    
+    # Java
+    if [ -f "pom.xml" ]; then
+        print_success "Found pom.xml (Java/Maven project)"
+        found=true
+    fi
+    
+    if [ -f "build.gradle" ]; then
+        print_success "Found build.gradle (Java/Gradle project)"
+        found=true
+    fi
+    
+    # Go
+    if [ -f "go.mod" ]; then
+        print_success "Found go.mod (Go project)"
+        found=true
+    fi
+    
+    if [ "$found" = false ]; then
+        print_warning "No version files detected in current directory"
+        print_info "Supported files: .python-version, .nvmrc, .node-version, .ruby-version"
+    fi
+    
+    echo ""
+    print_header "═══════════════════════════════════════════════════════════════"
+}
+
+# Main command handling
+if [ $# -eq 0 ]; then
+    show_usage
+    exit 0
+fi
+
+COMMAND="$1"
+shift
+
+case "$COMMAND" in
+    use)
+        use_version "$@"
+        ;;
+    status)
+        show_status
+        ;;
+    current)
+        show_current "$@"
+        ;;
+    list|ls)
+        list_versions "$@"
+        ;;
+    detect)
+        detect_project
+        ;;
+    -h|--help)
+        show_usage
+        ;;
+    -v|--version)
+        show_version
+        ;;
+    *)
+        print_error "Unknown command: $COMMAND"
+        echo "Use -h or --help for usage information"
+        exit 1
+        ;;
+esac

@@ -1,0 +1,18 @@
+# Test files
+test/
+tests/
+*.test
+
+# DevEnv config
+.devenv/
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db

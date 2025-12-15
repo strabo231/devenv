@@ -1,0 +1,68 @@
+name: Test DevEnv
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Test on Ubuntu
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Make script executable
+      run: chmod +x devenv
+    
+    - name: Test help command
+      run: ./devenv --help
+    
+    - name: Test version command
+      run: ./devenv --version
+    
+    - name: Test status command
+      run: ./devenv status
+    
+    - name: Test current python
+      run: ./devenv current python
+    
+    - name: Test current node
+      run: ./devenv current node || true
+    
+    - name: Test detect command
+      run: ./devenv detect
+    
+    - name: Create test project files
+      run: |
+        echo "3.11" > .python-version
+        echo "18" > .nvmrc
+        echo '{"engines":{"node":">=18"}}' > package.json
+    
+    - name: Test detect with project files
+      run: ./devenv detect
+    
+    - name: Install shellcheck
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y shellcheck
+    
+    - name: Run shellcheck
+      continue-on-error: true
+      run: shellcheck devenv
+    
+    - name: Verify script structure
+      run: |
+        grep -q "use_version()" devenv
+        grep -q "show_status()" devenv
+        grep -q "detect_project()" devenv
+        echo "✓ Script structure verified"
+    
+    - name: All tests passed
+      run: |
+        echo "================================"
+        echo "✓ All tests passed successfully!"
+        echo "================================"

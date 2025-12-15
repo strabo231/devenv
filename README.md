@@ -22,7 +22,7 @@ devenv status
 ## Installation
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/YOUR_USERNAME/devenv/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/strabo231/devenv/main/install.sh | bash
 ```
 
 ## Quick Start
